@@ -1,14 +1,6 @@
 #!/bin/bash
 set -e
 
-# Install
-# copy this file beside git(dirname `which git`), then the git command will
-# automatically find the command.
-
-# git-url prints a URL of the remote/branch/file
-# usage
-#   git url [remote/branch] [file]
-
 USAGE="usage: git url [remote/branch] [file]"
 
 if [ $# -gt 2 ]; then
