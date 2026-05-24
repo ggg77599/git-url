@@ -1,17 +1,42 @@
 #!/bin/bash
 set -e
 
-USAGE="usage: git url [remote/branch] [file]"
+USAGE="usage: git url [-n lineNumber] [-s] [[remote[/branch]] [file]]
+  -n:            line number. Can specify once for single line (#L10) or twice for range (#L10-L20)
+  -s:            static link, uses tag (if exists at HEAD) or commit hash instead of branch name
+  remote/branch: optional, defaults to 'origin' and current branch
+  file:          optional, omit for repository or tree URL
+"
 
-if [ $# -gt 2 ]; then
-    echo "too many parameters. parameter count $#. $USAGE"
-    exit 1
-fi
+# parse options
+url_fragment=""
+static_ref=false
+while getopts ":n:sh" o; do
+    case "${o}" in
+    n)
+        n=${OPTARG}
+        if [[ -z $url_fragment ]]; then
+            url_fragment="#L${n}"
+        else
+            url_fragment="${url_fragment}-L${n}"
+        fi
+        ;;
+    s)
+        static_ref=true
+        ;;
+    h)
+        printf "$USAGE"
+        exit 0
+        ;;
+    esac
+done
+shift $((OPTIND - 1))
 
 remote=""
 branch=""
 file="$2"
 if [ $# -eq 2 ]; then
+    # check if the parameter is remote/branch
     if [[ "$1" == *"/"* ]]; then
         remote=${1%%/*}
         branch=${1#*/}
@@ -20,28 +45,31 @@ if [ $# -eq 2 ]; then
         branch=$(git rev-parse --abbrev-ref HEAD) # get current branch
     fi
 
+    # check remote name
     if [[ "$(git remote)" != *"$remote"* ]]; then
         # FIXME: this place use contains substring, so "ori" will also pass
         echo "no such remote: $remote. $USAGE"
         exit 1
     fi
 
+    # check branch name
     if [[ "$(git branch --remote)" != *"$remote/$branch"* ]]; then
         # FIXME: this place use contains substring, so "mas" will also pass
         echo "no such remote branch: $branch. $USAGE"
         exit 1
     fi
 
+    # check file name
     if [ ! -f "$file" ]; then
         echo "no such file: $file. $USAGE"
         exit 1
     fi
 elif [ $# -eq 1 ]; then
-    if [ -f "$1" ]; then
+    if [ -f "$1" ]; then # check file name
         remote="origin"
         branch=$(git rev-parse --abbrev-ref HEAD) # get current branch
         file=$1
-    elif [[ "$1" == *"/"* ]]; then
+    elif [[ "$1" == *"/"* ]]; then # check if the parameter is remote/branch
         remote=${1%%/*}
         branch=${1#*/}
     else
@@ -57,9 +85,33 @@ elif [ $# -eq 1 ]; then
 
 elif [ $# -eq 0 ]; then
     remote="origin"
+else
+    echo "parameter incorrect. $USAGE"
+    exit 1
+fi
+
+# if static ref is requested, replace branch with tag or commit hash
+if [ "$static_ref" = true ] && [ -n "$branch" ]; then
+    # try to get the tag pointing to HEAD
+    tag=$(git tag --points-at HEAD | head -n 1)
+    if [ -n "$tag" ]; then
+        branch="$tag"
+    else
+        # fallback to commit hash
+        branch=$(git rev-parse HEAD)
+    fi
 fi
 
 remote_url=$(git remote get-url "$remote" | sed 's/\.git$//g')
+
+# Resolve SSH host from ~/.ssh/config
+if [[ "$remote_url" =~ ^(ssh://)?git@([^:/]+) ]]; then
+    ssh_host="${BASH_REMATCH[2]}"
+    real_hostname=$(ssh -G "$ssh_host" 2> /dev/null | awk '$1 == "hostname" { print $2 }')
+    if [ -n "$real_hostname" ]; then
+        remote_url="${remote_url/@$ssh_host/@$real_hostname}"
+    fi
+fi
 
 if [[ "$remote_url" == "git@"* ]]; then
     #echo "start with git@"
@@ -82,5 +134,5 @@ elif [ "$file" = "" ]; then
     echo "${remote_url}/tree/${branch}"
 else
     relative_file_path=$(git ls-files --full-name "$file")
-    echo "${remote_url}/blob/${branch}/${relative_file_path}"
+    echo "${remote_url}/blob/${branch}/${relative_file_path}${url_fragment}"
 fi
