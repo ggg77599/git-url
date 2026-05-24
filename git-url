@@ -134,5 +134,9 @@ elif [ "$file" = "" ]; then
     echo "${remote_url}/tree/${branch}"
 else
     relative_file_path=$(git ls-files --full-name "$file")
-    echo "${remote_url}/blob/${branch}/${relative_file_path}${url_fragment}"
+    if [[ -n "$url_fragment" ]] && [[ "$relative_file_path" =~ \.(md|markdown|MD|MARKDOWN)$ ]]; then
+        echo "${remote_url}/blob/${branch}/${relative_file_path}?plain=1${url_fragment}"
+    else
+        echo "${remote_url}/blob/${branch}/${relative_file_path}${url_fragment}"
+    fi
 fi
