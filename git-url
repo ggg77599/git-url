@@ -1,12 +1,25 @@
 #!/bin/bash
 set -e
 
-USAGE="usage: git url [-n lineNumber] [-s] [[remote[/branch]] [file]]
+USAGE="usage: git url [-n lineNumber] [-s] [--ssh] [[remote[/branch]] [file]]
   -n:            line number. Can specify once for single line (#L10) or twice for range (#L10-L20)
   -s:            static link, uses tag (if exists at HEAD) or commit hash instead of branch name
+  --ssh:         output the SSH clone URL instead of the HTTP(S) browse URL; not usable with -n or file
   remote/branch: optional, defaults to 'origin' and current branch
   file:          optional, omit for repository or tree URL
 "
+
+# getopts only understands short flags, so peel --ssh out of the args first
+ssh_flag=false
+args=()
+for arg in "$@"; do
+    if [[ "$arg" == "--ssh" ]]; then
+        ssh_flag=true
+    else
+        args+=("$arg")
+    fi
+done
+set -- "${args[@]}"
 
 # parse options
 url_fragment=""
@@ -90,6 +103,12 @@ else
     exit 1
 fi
 
+# --ssh only makes sense as a bare clone URL; line numbers and file paths are HTTP-browse concepts
+if [ "$ssh_flag" = true ] && { [ -n "$url_fragment" ] || [ -n "$file" ]; }; then
+    echo "-n and file are not supported with --ssh. $USAGE"
+    exit 1
+fi
+
 # if static ref is requested, replace branch with tag or commit hash
 if [ "$static_ref" = true ] && [ -n "$branch" ]; then
     # try to get the tag pointing to HEAD
@@ -102,7 +121,12 @@ if [ "$static_ref" = true ] && [ -n "$branch" ]; then
     fi
 fi
 
-remote_url=$(git remote get-url "$remote" | sed 's/\.git$//g')
+if [ "$ssh_flag" = true ]; then
+    # keep the .git suffix: this is the clone URL itself, not a browse-URL base
+    remote_url=$(git remote get-url "$remote")
+else
+    remote_url=$(git remote get-url "$remote" | sed 's/\.git$//g')
+fi
 
 # Resolve SSH host from ~/.ssh/config
 if [[ "$remote_url" =~ ^(ssh://)?git@([^:/]+) ]]; then
@@ -111,6 +135,12 @@ if [[ "$remote_url" =~ ^(ssh://)?git@([^:/]+) ]]; then
     if [ -n "$real_hostname" ]; then
         remote_url="${remote_url/@$ssh_host/@$real_hostname}"
     fi
+fi
+
+# --ssh skips the HTTP(S) conversion below entirely and ignores branch/file
+if [ "$ssh_flag" = true ]; then
+    echo "$remote_url"
+    exit 0
 fi
 
 # GIT_URL_SPECIAL_RULES: "host:oldport:newport;host2:oldport2:newport2;...".

@@ -7,13 +7,14 @@ copy this file to your `$PATH`, then the git command will automatically find the
 #### Usage
 
 ```shell
-git url [-n lineNumber] [-s] [[remote[/branch]] [file]]
+git url [-n lineNumber] [-s] [--ssh] [[remote[/branch]] [file]]
 ```
 
 ##### Options
 
 - `-n`: line number. Can specify once for single line (`#L10`) or twice for range (`#L10-L20`)
 - `-s`: static link, uses tag (if exists at HEAD) or commit hash instead of branch name
+- `--ssh`: output the SSH clone URL instead of the HTTP(S) browse URL; not usable with `-n` or a file
 - `-h`: show help message
 
 #### Example
@@ -31,6 +32,10 @@ git url -n 10 -n 20 README.md        # https://github.com/ggg77599/git-url/blob/
 
 # with static option
 git url -s README.md                 # https://github.com/ggg77599/git-url/blob/9cf43d40f57181c3730e584b28f7762af0542d62/README.md
+
+# with ssh option
+git url --ssh                        # git@github.com:ggg77599/git-url.git
+git url --ssh origin/main            # git@github.com:ggg77599/git-url.git (branch is ignored)
 
 git url gitlab                 # https://gitlab.com/ggg77599/git-url
 git url gitlab/main            # https://gitlab.com/ggg77599/git-url/tree/main
