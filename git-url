@@ -113,6 +113,27 @@ if [[ "$remote_url" =~ ^(ssh://)?git@([^:/]+) ]]; then
     fi
 fi
 
+# GIT_URL_SPECIAL_RULES: "host:oldport:newport;host2:oldport2:newport2;...".
+# Lets self-hosted remotes on a non-standard SSH port map to their HTTPS port
+# without hardcoding a hostname in this script. Unset -> no special rule applies.
+special_oldport=""
+special_newport=""
+if [ -n "$GIT_URL_SPECIAL_RULES" ]; then
+    IFS=';' read -ra special_rules <<< "$GIT_URL_SPECIAL_RULES"
+    for rule in "${special_rules[@]}"; do
+        [ -z "$rule" ] && continue
+        rule_host="${rule%%:*}"
+        rule_ports="${rule#*:}"
+        rule_oldport="${rule_ports%%:*}"
+        rule_newport="${rule_ports#*:}"
+        if [[ "$remote_url" == *"${rule_host}:${rule_oldport}"* ]]; then
+            special_oldport="$rule_oldport"
+            special_newport="$rule_newport"
+            break
+        fi
+    done
+fi
+
 if [[ "$remote_url" == "git@"* ]]; then
     #echo "start with git@"
     remote_url=$(echo "$remote_url" | sed 's|:|/|g')
@@ -122,9 +143,9 @@ elif [[ "$remote_url" == "ssh://git@"* ]]; then
     remote_url=$(echo "$remote_url" | sed 's|^ssh://||g')
     remote_url=$(echo "$remote_url" | sed 's|:|/|g')
     remote_url=$(echo "$remote_url" | sed 's|git@|https://|g')
-elif [[ "$remote_url" == *"this_is_my_own_special.rule:10022"* ]]; then
+elif [[ -n "$special_oldport" ]]; then
     #echo "special rules"
-    remote_url=$(echo "$remote_url" | sed 's|10022|10443|g')
+    remote_url=$(echo "$remote_url" | sed "s|${special_oldport}|${special_newport}|g")
     remote_url=$(echo "$remote_url" | sed 's|ssh://git@|https://|g')
 fi
 

@@ -40,7 +40,15 @@ git url gitlab/main README.md  # https://gitlab.com/ggg77599/git-url/blob/main/R
 
 #### Special rules
 
-if you have your self-host gitlab or other git repository, you can modify `this_is_my_own_special.rule` part to fit your use case.
+if you have a self-hosted gitlab or other git repository on a non-standard SSH port, set `GIT_URL_SPECIAL_RULES` to map it to its HTTPS port:
+
+```shell
+export GIT_URL_SPECIAL_RULES="my.gitlab.host:10022:10443"
+# multiple rules, separated by ;
+export GIT_URL_SPECIAL_RULES="host1:10022:10443;host2:2222:443"
+```
+
+each rule is `host:sshPort:httpsPort`. leave `GIT_URL_SPECIAL_RULES` unset if you don't need this.
 
 ssh hosts defined in your `~/.ssh/config` will be automatically resolved to their real hostnames.
 
